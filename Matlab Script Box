@@ -32,16 +32,12 @@ function box = Box_initialize(box)
     box.user_data.startTime = datetime('now');  % Store the starting time
     box.user_data.bufferSize = 30;  % Number of data points to show on the plot at any time
     
-    % Set up signal output header
+    % Set up output stream header (for OpenViBE to expect data)
     nb_channels = 1;  % Only one channel for sensor data
-    sampling_rate = 10;  % Set sampling rate (you can adjust this based on your needs)
+    sampling_rate = 1;  % Set sampling rate (adjust as needed)
     channel_names = {'Sensor Data'};
-    box = OV_setSignalOutputHeader(box, 1, nb_channels, sampling_rate, channel_names, sampling_rate);
+    box = OV_setSignalOutputHeader(box, 1, nb_channels, 1, channel_names, sampling_rate);
 end
-
-
-
-
 
 
 function box = Box_process(box)
@@ -71,13 +67,10 @@ function box = Box_process(box)
         xlim([elapsedTime - box.user_data.bufferSize, elapsedTime]);
     end
 
-    % Prepare signal output for OpenViBE
-    start_time = box.clock;  % Current OpenViBE time in seconds
-    end_time = start_time + (1 / box.clock_frequency);  % Next clock time
-    signal_matrix = data;  % The signal data to send
-    
-    % Add the signal matrix to OpenViBE output buffer
-    box = OV_addOutputBuffer(box, 1, start_time, end_time, signal_matrix);  % Send data to OpenViBE
+    % Prepare output buffer for OpenViBE
+    start_time = box.clock;
+    end_time = start_time + (1 / box.clock_frequency);
+    box = OV_addOutputBuffer(box, 1, start_time, end_time, data);  % Send data to OpenViBE
 end
 
 

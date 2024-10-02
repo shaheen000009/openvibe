@@ -1,0 +1,91 @@
+function box = Box_initialize(box)
+    % Define the serial port and baud rate
+    serialPort = 'COM6';  % Replace with your COM port
+    baudRate = 9600;      % Baud rate (9600 in this case)
+    box.user_data.serialObj = serialport(serialPort, baudRate);  % Store serial object in user data
+    
+    % Set up the figure for plotting
+    figure;
+    hold on;
+    grid on;
+    title('Real-Time Data Plot from Arduino');
+    xlabel('Time (s)');
+    ylabel('Sensor Data');
+    
+    % Create dual y-axes
+    yyaxis left;
+    ylim([0 8000]);  % Set y-axis limits from 0 to 8000
+    
+    yyaxis right;
+    ylim([0 8000]);  % Set y-axis limits from 0 to 8000
+    
+    xlim([0 30]);  % Initially set x-axis to display the first 30 seconds of data
+    
+    % Fill background with colored strips
+    fill([0, 10000, 10000, 0], [950, 950, 1050, 1050], [1, 0.8, 0.8], 'EdgeColor', 'none');  % Strip 1000-1050
+    fill([0, 10000, 10000, 0], [1900, 1900, 2100, 2100], [0.8, 1, 0.8], 'EdgeColor', 'none'); % Strip 2000-2050
+    fill([0, 10000, 10000, 0], [2850, 2850, 3150, 3150], [0.8, 0.8, 1], 'EdgeColor', 'none'); % Strip 3000-3050
+    fill([0, 10000, 10000, 0], [3800, 3800, 4200, 4200], [1, 1, 0.6], 'EdgeColor', 'none');   % Strip 4000-4050
+
+    % Create animated lines for real-time plotting
+    box.user_data.dataLine = animatedline('Color', 'b', 'LineWidth', 2);  % Sensor data line
+    box.user_data.startTime = datetime('now');  % Store the starting time
+    box.user_data.bufferSize = 30;  % Number of data points to show on the plot at any time
+    
+    % Set up signal output header
+    nb_channels = 1;  % Only one channel for sensor data
+    sampling_rate = 10;  % Set sampling rate (you can adjust this based on your needs)
+    channel_names = {'Sensor Data'};
+    box = OV_setSignalOutputHeader(box, 1, nb_channels, sampling_rate, channel_names, sampling_rate);
+end
+
+
+
+
+
+
+function box = Box_process(box)
+    % Retrieve the serial object
+    serialObj = box.user_data.serialObj;
+    
+    % Read data from the serial port
+    rawData = readline(serialObj);
+    data = str2double(rawData);  % Convert the string to a number
+    
+    % Ensure the data is valid
+    if isnan(data)
+        disp('Invalid data received');
+        return;  % Exit the process function if data is invalid
+    end
+    
+    % Get current time for x-axis
+    currentTime = datetime('now');
+    elapsedTime = seconds(currentTime - box.user_data.startTime);
+
+    % Add points to the plot
+    addpoints(box.user_data.dataLine, elapsedTime, data);
+    drawnow;  % Update the plot in real time
+
+    % Limit the number of data points shown on the plot
+    if elapsedTime > box.user_data.bufferSize
+        xlim([elapsedTime - box.user_data.bufferSize, elapsedTime]);
+    end
+
+    % Prepare signal output for OpenViBE
+    start_time = box.clock;  % Current OpenViBE time in seconds
+    end_time = start_time + (1 / box.clock_frequency);  % Next clock time
+    signal_matrix = data;  % The signal data to send
+    
+    % Add the signal matrix to OpenViBE output buffer
+    box = OV_addOutputBuffer(box, 1, start_time, end_time, signal_matrix);  % Send data to OpenViBE
+end
+
+
+
+
+function box = Box_uninitialize(box)
+    % Close the serial port when script ends
+    serialObj = box.user_data.serialObj;
+    fclose(serialObj);  % Close the serial connection
+    delete(serialObj);  % Delete the serial object
+end
